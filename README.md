@@ -1,6 +1,13 @@
 # K8s_practice
 
-Practice Kubernetes
+Notes on hands-on practice Kubernetes
+
+## Table of Content
+
+- [tb](#the-beginning)
+- [2nd](#auto-scaling-auto-healing)
+
+## The beginning
 
 Install `kubectl` and `minikube` following the official
 [doc](https://kubernetes.io/docs/tasks/tools/) suitable for your platform.
@@ -102,22 +109,84 @@ Commercial support is available at
 </body>
 </html>
 ```
-As we are done with the pod, let's delete it
+
+Get the details of the specific pod
+
 ```
-$  kubectl get pods -o wide
+ kubectl describe pod nginx
+Name:             nginx
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             minikube/192.168.49.2
+Start Time:       Sat, 10 Aug 2024 01:06:56 +0600
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.244.0.4
+IPs:
+  IP:  10.244.0.4
+Containers:
+  nginx:
+    Container ID:   docker://50292041f0935f3366794342e725974dd6e9071349290f6852236db94aa92a2e
+    Image:          nginx:1.14.2
+    Image ID:       docker-pullable://nginx@sha256:f7988fb6c02e0ce69257d9bd9cf37ae20a60f1df7563c3a2a6abe24160306b8d
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Sat, 10 Aug 2024 01:06:56 +0600
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-nqc6j (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True
+  Initialized                 True
+  Ready                       True
+  ContainersReady             True
+  PodScheduled                True
+Volumes:
+  kube-api-access-nqc6j:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  39m   default-scheduler  Successfully assigned default/nginx to minikube
+  Normal  Pulled     39m   kubelet            Container image "nginx:1.14.2" already present on machine
+  Normal  Created    39m   kubelet            Created container nginx
+  Normal  Started    39m   kubelet            Started container nginx
+```
+
+Print the logs for a pod
+
+```
+$ kubectl logs nginx
+```
+
+As we are done with the pod, let's delete it
+
+```
+$ kubectl get pods -o wide
 NAME    READY   STATUS    RESTARTS   AGE   IP           NODE       NOMINATED NODE   READINESS GATES
 nginx   1/1     Running   0          14m   10.244.0.3   minikube   <none>           <none>
 $ kubectl delete pod nginx
 pod "nginx" deleted
 ```
 
-
-
-
-
-
+## Auto-scaling, Auto-healing
 
 ## References
 
 * [Install Tools](https://kubernetes.io/docs/tasks/tools/)
 * [Kubernetes Beginner To Expert Level In One Video](https://www.youtube.com/watch?v=JoHUi9KvnOA)
+* [Reset kubectl context](https://stackoverflow.com/questions/64805569/reset-the-kubectl-context-to-docker-desktop)
