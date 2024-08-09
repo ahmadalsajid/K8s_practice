@@ -9,6 +9,8 @@ Notes on hands-on practice Kubernetes
 
 ## The beginning
 
+### Pod
+
 Install `kubectl` and `minikube` following the official
 [doc](https://kubernetes.io/docs/tasks/tools/) suitable for your platform.
 
@@ -185,8 +187,180 @@ pod "nginx" deleted
 
 ## Auto-scaling, Auto-healing
 
+### Deployment
+
+AS of Pods, they can be compared to a single Docker containers. For autoscaling,
+we will be using `deployments`. Let's create another file,
+[deployment.yml](./deployment.yml) and put the below definition
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+```
+
+Let's spin up the deployment
+
+```
+$ kubectl create -f deployment.yml 
+deployment.apps/nginx-deployment created
+```
+
+Alternately, we can get the same by
+
+```
+$ kubectl apply -f deployment.yml 
+deployment.apps/nginx-deployment created
+```
+
+List the deployment
+
+```
+$ kubectl get deploy             
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   3/3     3            3           9m55s
+```
+
+List the ReplicaSet
+
+```
+ kubectl get rs  
+NAME                          DESIRED   CURRENT   READY   AGE
+nginx-deployment-77d8468669   3         3         3       10m
+
+```
+
+And list the pods
+
+```
+$ kubectl get pods
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-77d8468669-2cnhp   1/1     Running   0          10m
+nginx-deployment-77d8468669-9dcqk   1/1     Running   0          10m
+nginx-deployment-77d8468669-czxg2   1/1     Running   0          10m
+```
+
+Now, open another terminal and watch for the pods
+
+```
+$ kubectl get pods -w            
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-77d8468669-2cnhp   1/1     Running   0          18m
+nginx-deployment-77d8468669-9dcqk   1/1     Running   0          18m
+nginx-deployment-77d8468669-czxg2   1/1     Running   0          18m
+```
+
+From the first terminal, delete one pod
+
+```
+$ kubectl delete pod nginx-deployment-77d8468669-2cnhp
+pod "nginx-deployment-77d8468669-2cnhp" deleted
+```
+
+Now, if you list again the pods after some time, you will get 3 pods but one with a new name
+
+```
+$ kubectl get pods                                    
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-77d8468669-9dcqk   1/1     Running   0          21m
+nginx-deployment-77d8468669-czxg2   1/1     Running   0          21m
+nginx-deployment-77d8468669-ht2kj   1/1     Running   0          60s
+```
+
+And the watch log
+
+```
+$ kubectl get pods -w            
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-77d8468669-2cnhp   1/1     Running   0          18m
+nginx-deployment-77d8468669-9dcqk   1/1     Running   0          18m
+nginx-deployment-77d8468669-czxg2   1/1     Running   0          18m
+nginx-deployment-77d8468669-2cnhp   1/1     Terminating   0          20m
+nginx-deployment-77d8468669-ht2kj   0/1     Pending       0          0s
+nginx-deployment-77d8468669-ht2kj   0/1     Pending       0          0s
+nginx-deployment-77d8468669-ht2kj   0/1     ContainerCreating   0          0s
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-ht2kj   1/1     Running             0          1s
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+```
+
+Let's increase the replicas from 3 to 5. update line 8 from `replicas: 3`
+to `replicas: 5` in the file [deployment.yml](./deployment.yml), and apply
+the change
+
+```
+$ kubectl apply -f deployment.yml
+deployment.apps/nginx-deployment configured
+```
+
+On second terminal, we will get,
+
+```
+$ kubectl get pods -w            
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-77d8468669-2cnhp   1/1     Running   0          18m
+nginx-deployment-77d8468669-9dcqk   1/1     Running   0          18m
+nginx-deployment-77d8468669-czxg2   1/1     Running   0          18m
+nginx-deployment-77d8468669-2cnhp   1/1     Terminating   0          20m
+nginx-deployment-77d8468669-ht2kj   0/1     Pending       0          0s
+nginx-deployment-77d8468669-ht2kj   0/1     Pending       0          0s
+nginx-deployment-77d8468669-ht2kj   0/1     ContainerCreating   0          0s
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-ht2kj   1/1     Running             0          1s
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-2cnhp   0/1     Terminating         0          20m
+nginx-deployment-77d8468669-w87p5   0/1     Pending             0          1s
+nginx-deployment-77d8468669-w87p5   0/1     Pending             0          1s
+nginx-deployment-77d8468669-qmfr5   0/1     Pending             0          0s
+nginx-deployment-77d8468669-qmfr5   0/1     Pending             0          0s
+nginx-deployment-77d8468669-w87p5   0/1     ContainerCreating   0          1s
+nginx-deployment-77d8468669-qmfr5   0/1     ContainerCreating   0          0s
+nginx-deployment-77d8468669-qmfr5   1/1     Running             0          0s
+nginx-deployment-77d8468669-w87p5   1/1     Running             0          1s
+```
+
+List all the pods now,
+
+```
+$ kubectl get pods                                    
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-77d8468669-9dcqk   1/1     Running   0          29m
+nginx-deployment-77d8468669-czxg2   1/1     Running   0          29m
+nginx-deployment-77d8468669-ht2kj   1/1     Running   0          9m2s
+nginx-deployment-77d8468669-qmfr5   1/1     Running   0          86s
+nginx-deployment-77d8468669-w87p5   1/1     Running   0          87s
+```
+Ok, we are done with the deployment for now, let's destroy what we've created!!
+
+```
+$ kubectl delete -f deployment.yml                                                                                                                                      
+deployment.apps "nginx-deployment" deleted
+```
 ## References
 
 * [Install Tools](https://kubernetes.io/docs/tasks/tools/)
 * [Kubernetes Beginner To Expert Level In One Video](https://www.youtube.com/watch?v=JoHUi9KvnOA)
 * [Reset kubectl context](https://stackoverflow.com/questions/64805569/reset-the-kubectl-context-to-docker-desktop)
+* [Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
+* [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
