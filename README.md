@@ -4,8 +4,9 @@ Notes on hands-on practice Kubernetes
 
 ## Table of Content
 
-- [tb](#the-beginning)
-- [2nd](#auto-scaling-auto-healing)
+- [The beginning](#the-beginning)
+- [Auto-scaling, Auto-healing](#auto-scaling-auto-healing)
+- [Kubernetes Service](#kubernetes-service)
 
 ## The beginning
 
@@ -351,12 +352,158 @@ nginx-deployment-77d8468669-ht2kj   1/1     Running   0          9m2s
 nginx-deployment-77d8468669-qmfr5   1/1     Running   0          86s
 nginx-deployment-77d8468669-w87p5   1/1     Running   0          87s
 ```
+
 Ok, we are done with the deployment for now, let's destroy what we've created!!
 
 ```
 $ kubectl delete -f deployment.yml                                                                                                                                      
 deployment.apps "nginx-deployment" deleted
 ```
+
+## Kubernetes Service
+
+### Cluster IP mode
+
+only accessible from the same network/cluster
+
+### Node Port mode
+
+only accessible from organization
+
+### Load Balancer mode
+
+open to world
+
+Let's create a deployment for the application in the file
+[app_deployment.yml](./app_deployment.yml) as below
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app
+  labels:
+    app: python-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: python-app
+  template:
+    metadata:
+      labels:
+        app: python-app
+    spec:
+      containers:
+      - name: fast-app
+        image: ahmadalsajid/fast-app:latest
+        ports:
+        - containerPort: 8000
+```
+
+Spin up the deployment via
+
+```
+$  kubectl create -f app_deployment.yml
+deployment.apps/python-app created
+```
+
+Now, let's create a service for this in [app_service.yml](./app_service.yml) file for NodePort mode.
+
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-app-k8s-service
+spec:
+  type: NodePort
+  selector:
+    app: python-app
+  ports:
+    - port: 80
+      targetPort: 8000
+      nodePort: 30007
+```
+
+And create it by
+
+```
+$ kubectl apply -f app_service.yml 
+service/python-app-k8s-service created
+```
+
+Check it with
+
+```
+$  kubectl get svc -v=7
+I0810 20:12:09.709775    1847 loader.go:395] Config loaded from file:  /home/sajid/.kube/config
+I0810 20:12:09.710265    1847 cert_rotation.go:137] Starting client certificate rotation controller
+I0810 20:12:09.712302    1847 round_trippers.go:463] GET https://127.0.0.1:52630/api/v1/namespaces/default/services?limit=500
+I0810 20:12:09.712326    1847 round_trippers.go:469] Request Headers:
+I0810 20:12:09.712350    1847 round_trippers.go:473]     Accept: application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io,application/json
+I0810 20:12:09.712357    1847 round_trippers.go:473]     User-Agent: kubectl/v1.30.2 (linux/amd64) kubernetes/3968350
+I0810 20:12:09.718214    1847 round_trippers.go:574] Response Status: 200 OK in 5 milliseconds
+NAME                     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubernetes               ClusterIP   10.96.0.1      <none>        443/TCP        20h
+python-app-k8s-service   NodePort    10.99.195.89   <none>        80:30007/TCP   2m3s
+```
+
+Check for the APIs working
+
+```
+$ minikube ssh
+docker@minikube:~$ curl http://10.99.195.89:80/
+{"Hello":"World"}
+docker@minikube:~$
+```
+
+Or, without SSHing to minikube, we can access it, from the same device where minikube is running,
+
+```
+$ minikube service --all
+|-----------|------------|-------------|--------------|
+| NAMESPACE |    NAME    | TARGET PORT |     URL      |
+|-----------|------------|-------------|--------------|
+| default   | kubernetes |             | No node port |
+|-----------|------------|-------------|--------------|
+😿  service default/kubernetes has no node port
+|-----------|------------------------|-------------|---------------------------|
+| NAMESPACE |          NAME          | TARGET PORT |            URL            |
+|-----------|------------------------|-------------|---------------------------|
+| default   | python-app-k8s-service |          80 | http://192.168.49.2:30007 |
+|-----------|------------------------|-------------|---------------------------|
+❗  Services [default/kubernetes] have type "ClusterIP" not meant to be exposed, however for local development minikube allows you to access this !
+🏃  Starting tunnel for service kubernetes.
+🏃  Starting tunnel for service python-app-k8s-service.
+|-----------|------------------------|-------------|------------------------|
+| NAMESPACE |          NAME          | TARGET PORT |          URL           |
+|-----------|------------------------|-------------|------------------------|
+| default   | kubernetes             |             | http://127.0.0.1:36571 |
+| default   | python-app-k8s-service |             | http://127.0.0.1:37519 |
+|-----------|------------------------|-------------|------------------------|
+🎉  Opening service default/kubernetes in default browser...
+👉  http://127.0.0.1:36571
+🎉  Opening service default/python-app-k8s-service in default browser...
+👉  http://127.0.0.1:37519
+❗  Because you are using a Docker driver on linux, the terminal needs to be open to run it.
+```
+
+Open another terminal and do
+
+```
+$ curl http://127.0.0.1:37519/
+{"Hello":"World"}%                                            
+```
+
+For now, we are done, and we can clear the system by
+
+```
+$ kubectl delete -f app_service.yml 
+service "python-app-k8s-service" deleted
+$ kubectl delete -f app_deployment.yml 
+deployment.apps "python-app" deleted
+```
+
 ## References
 
 * [Install Tools](https://kubernetes.io/docs/tasks/tools/)
@@ -364,3 +511,7 @@ deployment.apps "nginx-deployment" deleted
 * [Reset kubectl context](https://stackoverflow.com/questions/64805569/reset-the-kubectl-context-to-docker-desktop)
 * [Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
 * [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
+* [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
+* [Namespaces](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/)
+* [Unable to access a NodePort service on Minikube](https://stackoverflow.com/questions/55591468/unable-to-access-a-nodeport-service-on-minikube)
+* [Unable to access minikube IP address](https://stackoverflow.com/questions/71536310/unable-to-access-minikube-ip-address)
