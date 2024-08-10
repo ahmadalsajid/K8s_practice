@@ -7,8 +7,23 @@ Notes on hands-on practice Kubernetes
 - [The beginning](#the-beginning)
 - [Auto-scaling, Auto-healing](#auto-scaling-auto-healing)
 - [Kubernetes Service](#kubernetes-service)
+- [Ingress](#ingress)
 
 ## The beginning
+
+Basic Architecture of Kubernetes, Master - Node system / Control Plane - Data Plane system
+
+| Control Plane            | Data Plane        |
+|--------------------------|-------------------|
+| kube-apiserver           | kubelet           |
+| etcd                     | kube-proxy        |
+| kube-scheduler           | Container runtime | 
+| kube-controller-manager  |                   |
+| cloud-controller-manager |                   |
+
+Basic workflow of Kubernetes
+
+![Kubernetes workflow](./Kubernetes.png)
 
 ### Pod
 
@@ -504,6 +519,128 @@ $ kubectl delete -f app_deployment.yml
 deployment.apps "python-app" deleted
 ```
 
+## Ingress
+
+This time, we will create an Ingress in front of the service. So create [](./app_ingress.yml) and paste
+
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+spec:
+  rules:
+    - host: "foo.bar.com"
+      http:
+        paths:
+        - path: "/"
+          pathType: Prefix
+          backend:
+            service:
+              name: python-app-k8s-service
+              port:
+                number: 80
+```
+
+Also, we will be using `nginx` ingress for minikube, so enable it by
+
+```
+$ minikube addons enable ingress
+💡  ingress is an addon maintained by Kubernetes. For any concerns contact minikube on GitHub.
+You can view the list of minikube maintainers at: https://github.com/kubernetes/minikube/blob/master/OWNERS
+    ▪ Using image registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.4.1
+    ▪ Using image registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.4.1
+    ▪ Using image registry.k8s.io/ingress-nginx/controller:v1.10.1
+🔎  Verifying ingress addon...
+🌟  The 'ingress' addon is enabled
+$ kubectl get pods -n ingress-nginx
+NAME                                        READY   STATUS      RESTARTS   AGE
+ingress-nginx-admission-create-vjpnk        0/1     Completed   0          32m
+ingress-nginx-admission-patch-4rkpb         0/1     Completed   1          32m
+ingress-nginx-controller-768f948f8f-qcnj6   1/1     Running     0          32m
+```
+
+Now, create the ingress
+
+```
+$ kubectl apply -f app_ingress.yml                                                                                                                                      
+ingress.networking.k8s.io/minimal-ingress created
+$ kubectl get pods -A | grep nginx
+ingress-nginx   ingress-nginx-admission-create-vjpnk        0/1     Completed   0              41m
+ingress-nginx   ingress-nginx-admission-patch-4rkpb         0/1     Completed   1              41m
+ingress-nginx   ingress-nginx-controller-768f948f8f-qcnj6   1/1     Running     0              41m
+```
+
+Get the logs by
+
+```
+$ kubectl logs ingress-nginx-controller-768f948f8f-qcnj6 -n ingress-nginx                                                                                               
+-------------------------------------------------------------------------------
+NGINX Ingress controller
+  Release:       v1.10.1
+  Build:         4fb5aac1dd3669daa3a14d9de3e3cdb371b4c518
+  Repository:    https://github.com/kubernetes/ingress-nginx
+  nginx version: nginx/1.25.3
+
+-------------------------------------------------------------------------------
+
+W0810 16:26:37.967790       7 client_config.go:618] Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
+I0810 16:26:37.967897       7 main.go:205] "Creating API client" host="https://10.96.0.1:443"
+I0810 16:26:37.971225       7 main.go:248] "Running in Kubernetes cluster" major="1" minor="30" git="v1.30.0" state="clean" commit="7c48c2bd72b9bf5c44d21d7338cc7bea77d0ad2a" platform="linux/amd64"
+I0810 16:26:38.130810       7 main.go:101] "SSL fake certificate created" file="/etc/ingress-controller/ssl/default-fake-certificate.pem"
+I0810 16:26:38.143317       7 ssl.go:535] "loading tls certificate" path="/usr/local/certificates/cert" key="/usr/local/certificates/key"
+I0810 16:26:38.150629       7 nginx.go:264] "Starting NGINX Ingress controller"
+I0810 16:26:38.154349       7 event.go:364] Event(v1.ObjectReference{Kind:"ConfigMap", Namespace:"ingress-nginx", Name:"ingress-nginx-controller", UID:"02426dc4-c057-4127-b9a6-00110585a987", APIVersion:"v1", ResourceVersion:"20792", FieldPath:""}): type: 'Normal' reason: 'CREATE' ConfigMap ingress-nginx/ingress-nginx-controller
+I0810 16:26:38.157895       7 event.go:364] Event(v1.ObjectReference{Kind:"ConfigMap", Namespace:"ingress-nginx", Name:"tcp-services", UID:"1b9dbc21-a7b2-4735-ac8a-5ba3664e3da6", APIVersion:"v1", ResourceVersion:"20793", FieldPath:""}): type: 'Normal' reason: 'CREATE' ConfigMap ingress-nginx/tcp-services
+I0810 16:26:38.157918       7 event.go:364] Event(v1.ObjectReference{Kind:"ConfigMap", Namespace:"ingress-nginx", Name:"udp-services", UID:"0f50f60a-ecd7-4084-866e-7e2a2d7a3bcc", APIVersion:"v1", ResourceVersion:"20794", FieldPath:""}): type: 'Normal' reason: 'CREATE' ConfigMap ingress-nginx/udp-services
+I0810 16:26:39.354301       7 nginx.go:307] "Starting NGINX process"
+I0810 16:26:39.354443       7 leaderelection.go:250] attempting to acquire leader lease ingress-nginx/ingress-nginx-leader...
+I0810 16:26:39.355659       7 nginx.go:327] "Starting validation webhook" address=":8443" certPath="/usr/local/certificates/cert" keyPath="/usr/local/certificates/key"
+I0810 16:26:39.356242       7 controller.go:190] "Configuration changes detected, backend reload required"
+I0810 16:26:39.386843       7 leaderelection.go:260] successfully acquired lease ingress-nginx/ingress-nginx-leader
+I0810 16:26:39.387063       7 status.go:84] "New leader elected" identity="ingress-nginx-controller-768f948f8f-qcnj6"
+I0810 16:26:39.396761       7 status.go:219] "POD is not ready" pod="ingress-nginx/ingress-nginx-controller-768f948f8f-qcnj6" node="minikube"
+I0810 16:26:39.421764       7 controller.go:210] "Backend successfully reloaded"
+I0810 16:26:39.421852       7 controller.go:221] "Initial sync, sleeping for 1 second"
+I0810 16:26:39.421955       7 event.go:364] Event(v1.ObjectReference{Kind:"Pod", Namespace:"ingress-nginx", Name:"ingress-nginx-controller-768f948f8f-qcnj6", UID:"4959f61a-c857-4257-bcf2-58aee9475352", APIVersion:"v1", ResourceVersion:"20824", FieldPath:""}): type: 'Normal' reason: 'RELOAD' NGINX reload triggered due to a change in configuration
+I0810 16:54:52.249160       7 admission.go:149] processed ingress via admission controller {testedIngressLength:1 testedIngressTime:0.012s renderingIngressLength:1 renderingIngressTime:0.001s admissionTime:0.013s testedConfigurationSize:18.1kB}
+I0810 16:54:52.249213       7 main.go:107] "successfully validated configuration, accepting" ingress="default/minimal-ingress"
+I0810 16:54:52.256317       7 store.go:440] "Found valid IngressClass" ingress="default/minimal-ingress" ingressclass="nginx"
+I0810 16:54:52.256563       7 event.go:364] Event(v1.ObjectReference{Kind:"Ingress", Namespace:"default", Name:"minimal-ingress", UID:"fc819301-0557-43af-a514-21d2339e7c6f", APIVersion:"networking.k8s.io/v1", ResourceVersion:"22995", FieldPath:""}): type: 'Normal' reason: 'Sync' Scheduled for sync
+I0810 16:54:52.256964       7 controller.go:190] "Configuration changes detected, backend reload required"
+I0810 16:54:52.279977       7 controller.go:210] "Backend successfully reloaded"
+I0810 16:54:52.280305       7 event.go:364] Event(v1.ObjectReference{Kind:"Pod", Namespace:"ingress-nginx", Name:"ingress-nginx-controller-768f948f8f-qcnj6", UID:"4959f61a-c857-4257-bcf2-58aee9475352", APIVersion:"v1", ResourceVersion:"20824", FieldPath:""}): type: 'Normal' reason: 'RELOAD' NGINX reload triggered due to a change in configuration
+I0810 16:55:39.283219       7 status.go:304] "updating Ingress status" namespace="default" ingress="minimal-ingress" currentValue=null newValue=[{"ip":"192.168.49.2"}]
+I0810 16:55:39.287899       7 event.go:364] Event(v1.ObjectReference{Kind:"Ingress", Namespace:"default", Name:"minimal-ingress", UID:"fc819301-0557-43af-a514-21d2339e7c6f", APIVersion:"networking.k8s.io/v1", ResourceVersion:"23039", FieldPath:""}): type: 'Normal' reason: 'Sync' Scheduled for sync
+```
+
+In development mode, we are using local machine, so, we need to map the host
+with the ip, to do so, update `/etc/hosts` with the host and ip
+
+```
+... 
+192.168.49.2 foo.bar.com
+...
+```
+
+Check the ingress
+
+```
+$ kubectl get ingress                                                    
+NAME              CLASS   HOSTS         ADDRESS        PORTS   AGE
+minimal-ingress   nginx   foo.bar.com   192.168.49.2   80      4m55s
+```
+
+Now, you can `curl` to the host by
+
+```
+$ curl http://foo.bar.com/
+```
+
+> If you are using docker-desktop as the minikube config, you will need to
+> create tunnel using `minikube tunnel` and update that tunnel ip to the host
+> instead of the minikube ip.
+
 ## References
 
 * [Install Tools](https://kubernetes.io/docs/tasks/tools/)
@@ -515,3 +652,4 @@ deployment.apps "python-app" deleted
 * [Namespaces](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/)
 * [Unable to access a NodePort service on Minikube](https://stackoverflow.com/questions/55591468/unable-to-access-a-nodeport-service-on-minikube)
 * [Unable to access minikube IP address](https://stackoverflow.com/questions/71536310/unable-to-access-minikube-ip-address)
+* [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
