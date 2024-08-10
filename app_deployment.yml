@@ -15,7 +15,12 @@ spec:
         app: python-app
     spec:
       containers:
-      - name: fast-app
-        image: ahmadalsajid/fast-app:latest
-        ports:
-        - containerPort: 8000
+        - name: fast-app
+          image: ahmadalsajid/fast-app:latest
+          volumeMounts:
+            - name: env-vars
+              mountPath: /etc/config
+      volumes:
+        - name: env-vars
+          configMap:
+            name: config-map-demo

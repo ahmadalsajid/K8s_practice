@@ -642,9 +642,308 @@ $ curl http://foo.bar.com/
 > create tunnel using `minikube tunnel` and update that tunnel ip to the host
 > instead of the minikube ip.
 
-
-
 ## ConfigMaps & Secrets
+
+### ConfigMaps
+
+> Used for env variables, no encryption while storing to `etcd`
+
+Paste the below to [config_map.yml](./config_map.yml) to create config map
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-map-demo
+data:
+  mysql-port: "3306"
+  pqsql-port: "5432"
+```
+
+Create it by
+
+```
+$ kubectl apply -f config_map.yml 
+configmap/config-map-demo created
+```
+
+list config map with
+
+```
+$ kubectl get cm
+NAME               DATA   AGE
+config-map-demo    2      30s
+kube-root-ca.crt   1      23h
+```
+
+Get the data from the config map
+
+```
+$ kubectl describe cm config-map-demo
+Name:         config-map-demo
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+pqsql-port:
+----
+5432
+mysql-port:
+----
+3306
+
+BinaryData
+====
+
+Events:  <none>
+```
+
+Let's create a deployment using `app_deployment.yml` which has the following specs
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app
+  labels:
+    app: python-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: python-app
+  template:
+    metadata:
+      labels:
+        app: python-app
+    spec:
+      containers:
+      - name: fast-app
+        image: ahmadalsajid/fast-app:latest
+        ports:
+        - containerPort: 8000
+```
+
+and check if there are any environment variable in the pod
+
+```
+$ kubectl apply -f app_deployment.yml 
+deployment.apps/python-app created
+$ kubectl get pods                
+NAME                          READY   STATUS              RESTARTS   AGE
+python-app-75cfc8f5b4-5nxpw   1/1     Running             0          14s
+python-app-75cfc8f5b4-c55bm   1/1     Running             0          14s
+python-app-75cfc8f5b4-fnvv8   0/1     ContainerCreating   0          14s
+$ kubectl exec -it python-app-75cfc8f5b4-5nxpw -- /bin/bash
+root@python-app-75cfc8f5b4-5nxpw:/code# env |grep _port
+root@python-app-75cfc8f5b4-5nxpw:/code#
+```
+
+Now, update [app_deployment.yml](./app_deployment.yml) with the below changes
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app
+  labels:
+    app: python-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: python-app
+  template:
+    metadata:
+      labels:
+        app: python-app
+    spec:
+      containers:
+      - name: fast-app
+        image: ahmadalsajid/fast-app:latest
+        env:
+          - name: MYSQL_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: config-map-demo
+                key: mysql-port
+          - name: PGSQL_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: config-map-demo
+                key: pgsql-port
+        ports:
+        - containerPort: 8000
+```
+
+And apply the change, and again check for the environment variable in the container cli
+
+```
+$ kubectl apply -f app_deployment.yml                      
+deployment.apps/python-app configured
+$ kubectl get pods                                        
+NAME                          READY   STATUS    RESTARTS   AGE
+python-app-6bd9dd8fcc-8sjcr   1/1     Running   0          7s
+python-app-6bd9dd8fcc-jgxch   1/1     Running   0          16s
+python-app-6bd9dd8fcc-sz4r7   1/1     Running   0          11s
+$  kubectl exec -it python-app-6bd9dd8fcc-sz4r7 -- /bin/bash
+root@python-app-6bd9dd8fcc-sz4r7:/code# env | grep SQL_PORT
+MYSQL_PORT=3306
+PGSQL_PORT=5432
+root@python-app-6bd9dd8fcc-sz4r7:/code#
+```
+
+NOw, what if the config map is updated, i.e. the ports are changed for some
+reason, how the pods will know about that change? The answer is, `volumeMounts`.
+
+So, let's update the `config_map.yml` with the updated value
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-map-demo
+data:
+  mysql-port: "3308"
+  pgsql-port: "5431"
+```
+
+And update the config map
+
+```
+$  kubectl apply -f config_map.yml 
+```
+
+Let's update the [app_deployment.yml](./app_deployment.yml) again with below
+code to mount the volume.
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app
+  labels:
+    app: python-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: python-app
+  template:
+    metadata:
+      labels:
+        app: python-app
+    spec:
+      containers:
+        - name: fast-app
+          image: ahmadalsajid/fast-app:latest
+          volumeMounts:
+            - name: env-vars
+              mountPath: /etc/config
+      volumes:
+        - name: env-vars
+          configMap:
+            name: config-map-demo
+
+```
+
+And apply the changes to the deployment
+
+```
+$ kubectl apply -f app_deployment.yml
+```
+
+Now, check one of the pod to get the variable values
+
+```
+$ kubectl get pods
+NAME                          READY   STATUS    RESTARTS   AGE
+python-app-6d5b857fc8-8b7fl   1/1     Running   0          4m50s
+python-app-6d5b857fc8-dx6l7   1/1     Running   0          4m50s
+python-app-6d5b857fc8-jnfs9   1/1     Running   0          4m50s
+$ kubectl exec -it python-app-6d5b857fc8-8b7fl -- /bin/bash
+root@python-app-6d5b857fc8-8b7fl:/code# env | grep SQL_PORT
+root@python-app-6d5b857fc8-8b7fl:/code# ls /etc/config
+mysql-port  pgsql-port
+root@python-app-6d5b857fc8-8b7fl:/code# cat mysql-port 
+cat: mysql-port: No such file or directory
+root@python-app-6d5b857fc8-8b7fl:/code# cat /etc/config/mysql-port 
+3308root@python-app-6d5b857fc8-8b7fl:/code# cat /etc/config/mysql-port | more
+3308
+
+(END)
+```
+
+Once again, let's change the variable values in
+[config_map.yml](./config_map.yml) to
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-map-demo
+data:
+  mysql-port: "3380"
+  pgsql-port: "5436"
+```
+
+And apply the changes and check if the pods
+picks up without being created again.
+
+```
+$ kubectl apply -f config_map.yml                          
+configmap/config-map-demo configured
+$ kubectl describe cm config-map-demo
+Name:         config-map-demo
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+mysql-port:
+----
+3380
+pgsql-port:
+----
+5436
+
+BinaryData
+====
+
+Events:  <none>
+$ kubectl exec -it python-app-6d5b857fc8-8b7fl -- /bin/bash
+root@python-app-6d5b857fc8-8b7fl:/code# cat /etc/config/mysql-port | more
+3380
+```
+
+### Secrets
+
+> Used for secret variable like passwords, tokens, encryption on rest while storing to `etcd`
+
+Let's create a secret i.e. db_password using secrets
+
+```
+$ kubectl create secret generic secrets-demo --from-literal=db_password="password"
+secret/secrets-demo created
+$ kubectl describe secret secrets-demo
+Name:         secrets-demo
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+db_password:  8 bytes
+```
+
+Also, we can create secrets from file as we have created ConfigMaps. K8s
+secrets encryption are not up to hte mark. It's recommended to use user
+managed encryption.
 
 ## References
 
@@ -660,3 +959,7 @@ $ curl http://foo.bar.com/
 * [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
 * [Minikube with ingress example not working](https://stackoverflow.com/questions/58561682/minikube-with-ingress-example-not-working)
 * [Setting up ingress in the minikube not working](https://stackoverflow.com/questions/76858558/setting-up-ingress-in-the-minikube-not-working)
+* [ConfigMaps](https://kubernetes.io/docs/concepts/configuration/configmap/)
+* [Configure a Pod to Use a ConfigMap](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/)
+* [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/)
+* [Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)

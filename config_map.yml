@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-map-demo
+data:
+  mysql-port: "3380"
+  pgsql-port: "5436"
