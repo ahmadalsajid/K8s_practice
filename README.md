@@ -8,6 +8,7 @@ Notes on hands-on practice Kubernetes
 - [Auto-scaling, Auto-healing](#auto-scaling-auto-healing)
 - [Kubernetes Service](#kubernetes-service)
 - [Ingress](#ingress)
+- [ConfigMaps & Secrets](#configmaps--secrets)
 
 ## The beginning
 
@@ -641,6 +642,10 @@ $ curl http://foo.bar.com/
 > create tunnel using `minikube tunnel` and update that tunnel ip to the host
 > instead of the minikube ip.
 
+
+
+## ConfigMaps & Secrets
+
 ## References
 
 * [Install Tools](https://kubernetes.io/docs/tasks/tools/)
@@ -653,3 +658,5 @@ $ curl http://foo.bar.com/
 * [Unable to access a NodePort service on Minikube](https://stackoverflow.com/questions/55591468/unable-to-access-a-nodeport-service-on-minikube)
 * [Unable to access minikube IP address](https://stackoverflow.com/questions/71536310/unable-to-access-minikube-ip-address)
 * [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
+* [Minikube with ingress example not working](https://stackoverflow.com/questions/58561682/minikube-with-ingress-example-not-working)
+* [Setting up ingress in the minikube not working](https://stackoverflow.com/questions/76858558/setting-up-ingress-in-the-minikube-not-working)
