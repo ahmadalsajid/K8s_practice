@@ -11,6 +11,7 @@ Notes on hands-on practice Kubernetes
 - [ConfigMaps & Secrets](#configmaps--secrets)
 - [RBAC](#rbac)
 - [Monitoring with Prometheus & Grafana](#monitoring-with-prometheus--grafana)
+- [ Custom Resource](#custom-resource)
 
 ## The beginning
 
@@ -1027,6 +1028,16 @@ Let's get some more metrics from `prometheus-kube-state-metrics`. Expose again u
 $ kubectl expose service prometheus-kube-state-metrics --type=NodePort --target-port=8080 --name=prometheus-kube-state-metrics-ext
 service/prometheus-kube-state-metrics-ext exposed
 ```
+
+## Custom Resource
+
+### CRD (Custom Resource Definition)
+
+### CR (Custom Resource)
+
+### Custom Controller ()
+
+![Custom Resource](./Kubernetes_custom_resource.jpg)
 
 ## References
 
