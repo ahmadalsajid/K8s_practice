@@ -9,6 +9,8 @@ Notes on hands-on practice Kubernetes
 - [Kubernetes Service](#kubernetes-service)
 - [Ingress](#ingress)
 - [ConfigMaps & Secrets](#configmaps--secrets)
+- [RBAC](#rbac)
+- [Monitoring with Prometheus & Grafana](#monitoring-with-prometheus--grafana)
 
 ## The beginning
 
@@ -945,6 +947,87 @@ Also, we can create secrets from file as we have created ConfigMaps. K8s
 secrets encryption are not up to hte mark. It's recommended to use user
 managed encryption.
 
+## RBAC
+
+Role Based Access Control
+
+User Management is done by Identity provider.
+For Example, on AWS EKS, that is done by IAM auth provider. Keycloak, LDAP,
+SSO are some other options.
+
+| Role         | Cluster Role         |
+|--------------|----------------------|
+| Role Binding | Cluster Role Binding |
+
+Service accounts can be created with YAML files from the cluster.
+
+![RBAC architecture](./Kubernetes_rbac.jpg)
+
+## Monitoring with Prometheus & Grafana
+
+Install Prometheus using helm
+
+```
+$ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+$ helm repo update
+$ helm install prometheus prometheus-community/prometheus
+$ kubectl expose service prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-ext
+```
+
+As we are using Docker driver in minikube in WSL2, we can not directly access
+the NodePort. So, we will be opening a new terminal to create minikube tunnel
+to access these services and keep that terminal open.
+
+```
+$ minikube service --all  # for exposing all the servics
+$ minikube service prometheus-server  # only the desired service
+|-----------|-------------------|-------------|--------------|
+| NAMESPACE |       NAME        | TARGET PORT |     URL      |
+|-----------|-------------------|-------------|--------------|
+| default   | prometheus-server |             | No node port |
+|-----------|-------------------|-------------|--------------|
+😿  service default/prometheus-server has no node port
+❗  Services [default/prometheus-server] have type "ClusterIP" not meant to be exposed, however for local development minikube allows you to access this !
+🏃  Starting tunnel for service prometheus-server.
+|-----------|-------------------|-------------|------------------------|
+| NAMESPACE |       NAME        | TARGET PORT |          URL           |
+|-----------|-------------------|-------------|------------------------|
+| default   | prometheus-server |             | http://127.0.0.1:35301 |
+|-----------|-------------------|-------------|------------------------|
+🎉  Opening service default/prometheus-server in default browser...
+👉  http://127.0.0.1:35301
+❗  Because you are using a Docker driver on linux, the terminal needs to be open to run it.
+
+```
+
+Now, we can browse `http://127.0.0.1:35301` for Prometheus.
+
+Install Grafana the same way, and get the password for the user `admin`
+following the output of the previous steps.
+
+```
+$ helm repo add grafana https://grafana.github.io/helm-charts
+$ helm repo update
+$ helm install grafana grafana/grafana
+$ kubectl expose service grafana — type=NodePort — target-port=3000 — name=grafana-ext
+$ kubectl get secret --namespace default grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+wqgkJhuqyHrhCZTQjOySWi9t7VD4iZ68u1MSlxTP
+```
+
+And check the tunneled IP:port to access Grafana and Prometheus. Set Prometheus as Grafana data source.
+
+> While setting `Prometheus` as the data source in `Grafana`, please use
+> the NodePort Mode IP:port instead of the tunneled IP:port.
+
+Also, we can use predefined Grafana dashboard, i.e. `3662` to create a dashboard.
+
+Let's get some more metrics from `prometheus-kube-state-metrics`. Expose again using
+
+```
+$ kubectl expose service prometheus-kube-state-metrics --type=NodePort --target-port=8080 --name=prometheus-kube-state-metrics-ext
+service/prometheus-kube-state-metrics-ext exposed
+```
+
 ## References
 
 * [Install Tools](https://kubernetes.io/docs/tasks/tools/)
@@ -963,3 +1046,10 @@ managed encryption.
 * [Configure a Pod to Use a ConfigMap](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/)
 * [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/)
 * [Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
+* [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
+*
+*
+* 
+
+
+
